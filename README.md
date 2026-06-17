@@ -22,6 +22,7 @@
   <a href="#features">Features</a> •
   <a href="#tech-stack">Tech Stack</a> •
   <a href="#getting-started">Getting Started</a> •
+  <a href="#configuration">Configuration</a> •
   <a href="#commands">Commands</a> •
   <a href="#license">License</a>
 </p>
@@ -37,7 +38,7 @@ This guarantees complete privacy for the user.
 ## Features
 
 - **100% Client-Side** — Files never leave the browser. Zero server uploads.
-- **Multiple Formats** — JPG, JPEG, PNG, WebP, GIF, and BMP (max 50 MB per file).
+- **Multiple Formats** — JPG, JPEG, PNG, WebP, GIF and BMP (max 50 MB per file).
 - **Batch Processing** — Compress up to 10 files at once.
 - **Before/After Comparison** — Compare compressed and original images side by side.
 
@@ -55,8 +56,7 @@ This guarantees complete privacy for the user.
 
 ### Prerequisites
 
-- Node.js 20+
-- npm
+- Node.js 24+
 
 ### Installation
 
@@ -73,6 +73,24 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Configuration
+
+Edit `src/site.config.ts` to customise the site. All values are read at build time.
+
+| Key                | Description                                                          |
+| ------------------ | -------------------------------------------------------------------- |
+| `name`             | App display name (header, OG image, manifest)                        |
+| `version`          | Version number shown in the header                                   |
+| `title`            | Full page title for SEO                                              |
+| `description`      | Full description for meta tags                                       |
+| `shortDescription` | Short description for OG/Twitter cards                               |
+| `url`              | Canonical site URL                                                   |
+| `authors`          | Author objects (`{ name: "..." }`) for metadata                      |
+| `keywords`         | SEO keywords array                                                   |
+| `themeColor`       | Primary accent hex colour (lightened 40% automatically in dark mode) |
+| `favicon`          | Custom favicon path (leave empty to use default favicon)             |
+| `githubUrl`        | Link to the GitHub repository                                        |
 
 ## Commands
 
