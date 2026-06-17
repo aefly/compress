@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "./progress-bar";
 import { Comparison } from "./comparison";
-import { CompressFile } from "@/lib/constants";
+import { CompressFile, MIME_TO_LABEL } from "@/lib/constants";
 import { formatSize, truncateName } from "@/lib/utils";
 import { useState, useCallback } from "react";
 
@@ -36,9 +36,6 @@ export function FileCard({
     const [showComparison, setShowComparison] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    // Copy compressed image to clipboard. Two attempts:
-    // 1. Direct blob write (works for PNG/JPEG/WebP in Chromium).
-    // 2. Canvas fallback: re-draw and export as PNG (for blobs the Clipboard API rejects, e.g. GIF).
     const handleCopy = useCallback(async () => {
         if (!file.compressedBlob) return;
         try {
@@ -53,15 +50,18 @@ export function FileCard({
         } catch {
             try {
                 const img = new Image();
-                const url = URL.createObjectURL(file.compressedBlob);
+                let objectUrl: string | null = null;
                 img.onload = async () => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext("2d");
-                    if (ctx) {
-                        ctx.drawImage(img, 0, 0);
-                        canvas.toBlob(async (pngBlob) => {
+                    try {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        const ctx = canvas.getContext("2d");
+                        if (ctx) {
+                            ctx.drawImage(img, 0, 0);
+                            const pngBlob = await new Promise<Blob | null>((resolve) =>
+                                canvas.toBlob(resolve, "image/png")
+                            );
                             if (pngBlob) {
                                 await navigator.clipboard.write([
                                     new ClipboardItem({ "image/png": pngBlob }),
@@ -69,13 +69,18 @@ export function FileCard({
                                 setCopied(true);
                                 setTimeout(() => setCopied(false), 2000);
                             }
-                        }, "image/png");
+                        }
+                    } catch {
+                        // Clipboard API not available in this context
                     }
-                    URL.revokeObjectURL(url);
                 };
-                img.src = url;
+                objectUrl = URL.createObjectURL(file.compressedBlob);
+                img.src = objectUrl;
+                img.onerror = () => {
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                };
             } catch {
-                // silent fail
+                // Clipboard fallback failed — no user feedback needed as this is a best-effort attempt
             }
         }
     }, [file.compressedBlob]);
@@ -85,6 +90,8 @@ export function FileCard({
             ? ((1 - file.compressedSize / file.size) * 100).toFixed(1)
             : null;
 
+    const formatLabel = MIME_TO_LABEL[file.type] || file.type.split("/")[1]?.toUpperCase() || "IMG";
+
     return (
         <div className="group overflow-hidden rounded-xl border bg-card/60 backdrop-blur-sm transition-all duration-300 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/5">
             <div className="flex flex-col sm:flex-row">
@@ -92,7 +99,7 @@ export function FileCard({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={file.previewUrl}
-                        alt={file.name}
+                        alt={`Preview of ${file.name}`}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -121,7 +128,7 @@ export function FileCard({
                             <div className="flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
                                 <FileImage className="h-3 w-3 text-white/70" />
                                 <span className="text-[10px] font-medium text-white/70">
-                                    {file.type.split("/")[1]?.toUpperCase()}
+                                    {formatLabel}
                                 </span>
                             </div>
                         </div>
@@ -155,7 +162,7 @@ export function FileCard({
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
-                            {reduction && (
+                            {reduction && Number(reduction) > 0 && (
                                 <Badge
                                     variant="secondary"
                                     className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0 font-mono text-[11px]"
@@ -171,7 +178,7 @@ export function FileCard({
                                     onClick={() =>
                                         setShowComparison(!showComparison)
                                     }
-                                    title="Compare"
+                                    aria-label="Compare before and after"
                                 >
                                     <Eye className="h-3.5 w-3.5" />
                                 </Button>
@@ -182,7 +189,7 @@ export function FileCard({
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                     onClick={() => onDownload(file)}
-                                    title="Download"
+                                    aria-label="Download compressed image"
                                 >
                                     <Download className="h-3.5 w-3.5" />
                                 </Button>
@@ -193,7 +200,7 @@ export function FileCard({
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                     onClick={handleCopy}
-                                    title="Copy to clipboard"
+                                    aria-label="Copy to clipboard"
                                 >
                                     {copied ? (
                                         <Check className="h-3.5 w-3.5 text-emerald-500" />
@@ -209,7 +216,7 @@ export function FileCard({
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                     onClick={() => onRemove(file.id)}
-                                    title="Remove"
+                                    aria-label="Remove file"
                                 >
                                     <X className="h-3.5 w-3.5" />
                                 </Button>
@@ -220,7 +227,7 @@ export function FileCard({
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                     onClick={() => onReset(file.id)}
-                                    title="Reset"
+                                    aria-label="Reset file"
                                 >
                                     <RotateCcw className="h-3.5 w-3.5" />
                                 </Button>
@@ -231,7 +238,7 @@ export function FileCard({
                                     size="icon"
                                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                     onClick={() => onRemove(file.id)}
-                                    title="Remove"
+                                    aria-label="Remove file"
                                 >
                                     <X className="h-3.5 w-3.5" />
                                 </Button>
