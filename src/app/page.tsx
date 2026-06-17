@@ -63,8 +63,7 @@ export default function Home() {
                     100% private
                 </div>
                 <h1
-                    className="text-3xl font-bold tracking-tight sm:text-4xl"
-                    style={{ color: "var(--foreground)" }}
+                    className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
                 >
                     Compress images
                     <span className="block text-muted-foreground font-normal mt-1 text-lg sm:text-xl">
