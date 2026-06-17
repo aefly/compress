@@ -19,12 +19,12 @@ export function FileList({
   if (files.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2.5">
-      {files.map((file, i) => (
+    <div className="flex flex-col gap-2.5" role="list">
+      {files.map((file) => (
         <div
           key={file.id}
           className="animate-fade-up"
-          style={{ animationDelay: `${i * 50}ms` }}
+          style={{ animationDelay: `${(file.id.charCodeAt(file.id.length - 1) % 10) * 50}ms` }}
         >
           <FileCard
             file={file}
