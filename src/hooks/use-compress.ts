@@ -1,6 +1,16 @@
+/**
+ * Core state management hook for the compression workflow
+ *
+ * Manages the full lifecycle: add files → compress → download, plus
+ * Object URL tracking to prevent memory leaks
+ *
+ * PRIVACY GUARANTEE: No file data ever leaves the browser
+ * All compression is performed client-side by src/lib/compress.ts
+ */
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { flushSync } from "react-dom";
 import { compressImage } from "@/lib/compress";
 import { createZip } from "@/lib/zip";
 import {
@@ -9,12 +19,13 @@ import {
   MAX_FILE_SIZE,
   DEFAULT_QUALITY,
   SUPPORTED_FORMATS,
+  MIME_TO_EXT,
 } from "@/lib/constants";
 import { saveAs } from "file-saver";
-import { truncateName } from "@/lib/utils";
+import { truncateName, formatSize } from "@/lib/utils";
 
-// Module-level counter ensures unique IDs even when multiple files are added in the same millisecond.
-// Not in React state because it does not need to trigger re-renders.
+// Module-level counter ensures unique IDs even when multiple files are added
+// in the same millisecond. Not in React state because it must not trigger re-renders
 let nextId = 0;
 function generateId(): string {
   return `file-${nextId++}-${Date.now()}`;
@@ -30,8 +41,9 @@ export function useCompress() {
   const [quality, setQuality] = useState(DEFAULT_QUALITY);
   const [isCompressing, setIsCompressing] = useState(false);
   const [errors, setErrors] = useState<FileError[]>([]);
-  // Every Object URL created must be revoked to avoid memory leaks.
-  // Tracked in a ref (not state) so revocation never causes re-renders.
+
+  // Track every Object URL created so they can be revoked on unmount
+  // or when a file is removed, preventing memory leaks
   const urlsRef = useRef<Set<string>>(new Set());
 
   function trackUrl(url: string) {
@@ -43,7 +55,7 @@ export function useCompress() {
     urlsRef.current.delete(url);
   }
 
-  // Cleanup all object URLs when the hook unmounts
+  // Cleanup all Object URLs when the hook unmounts
   useEffect(() => {
     const urls = urlsRef.current;
     return () => {
@@ -59,15 +71,25 @@ export function useCompress() {
   const addFiles = useCallback(
     (newFiles: File[]) => {
       const remaining = MAX_FILES - files.length;
+      if (remaining <= 0) return;
+
       const toAdd = newFiles.slice(0, remaining);
+      // Notify the user if some files were silently dropped due to the limit
+      const dropped = newFiles.length - toAdd.length;
       const newErrors: FileError[] = [];
 
-      // Validate files: check size limit and format support
+      if (dropped > 0) {
+        newErrors.push({
+          id: generateId(),
+          message: `Only ${remaining} more file${remaining === 1 ? "" : "s"} can be added. ${dropped} file${dropped === 1 ? "was" : "were"} not added.`,
+        });
+      }
+
       const valid = toAdd.filter((f) => {
         if (f.size > MAX_FILE_SIZE) {
           newErrors.push({
             id: generateId(),
-            message: `"${truncateName(f.name)}" exceeds 50 MB limit (${(f.size / (1000 * 1000)).toFixed(1)} MB)`,
+            message: `"${truncateName(f.name)}" exceeds 50 MB limit (${formatSize(f.size)})`,
           });
           return false;
         }
@@ -89,7 +111,6 @@ export function useCompress() {
         setErrors((prev) => [...prev, ...newErrors]);
       }
 
-      // Create preview URLs and file entries
       const compressFiles: CompressFile[] = valid.map((file) => {
         const url = URL.createObjectURL(file);
         trackUrl(url);
@@ -143,36 +164,43 @@ export function useCompress() {
   const compressAll = useCallback(async () => {
     setIsCompressing(true);
 
-    // Reset any previously compressed files back to pending
-    const filesToCompress = files.filter(
+    // Reset any previously compressed or errored files back to pending
+    // Revokes stale Object URLs before they are replaced
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.status === "done") {
+          if (f.compressedUrl) revokeTrackedUrl(f.compressedUrl);
+          return {
+            ...f,
+            status: "pending" as const,
+            progress: 0,
+            compressedBlob: undefined,
+            compressedSize: undefined,
+            compressedUrl: undefined,
+            error: undefined,
+            compressedWidth: undefined,
+            compressedHeight: undefined,
+          };
+        }
+        if (f.status === "error") {
+          return { ...f, status: "pending" as const, progress: 0, error: undefined };
+        }
+        return f;
+      })
+    );
+
+    // Flush the state resets above so React renders "pending" before we start
+    flushSync(() => {});
+
+    const currentFiles = files.filter(
       (f) =>
         f.status === "pending" ||
         f.status === "error" ||
         f.status === "done"
     );
 
-    for (const file of filesToCompress) {
-      if (file.status === "done") {
-        if (file.compressedUrl) revokeTrackedUrl(file.compressedUrl);
-        updateFile(file.id, {
-          status: "pending",
-          progress: 0,
-          compressedBlob: undefined,
-          compressedSize: undefined,
-          compressedUrl: undefined,
-          error: undefined,
-          compressedWidth: undefined,
-          compressedHeight: undefined,
-        });
-      }
-    }
-
-    // Yield to the event loop so React can flush the state resets above
-    // before we begin compressing. Without this, the UI may skip the "pending" state.
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Compress files sequentially to keep UI responsive
-    for (const file of filesToCompress) {
+    // Compress sequentially to keep the UI responsive
+    for (const file of currentFiles) {
       updateFile(file.id, { status: "compressing", progress: 0 });
 
       try {
@@ -183,8 +211,8 @@ export function useCompress() {
           },
         });
 
-        // If "compressed" result is larger (common with already-optimized JPEGs),
-        // keep the original to avoid regressing the user's file size.
+        // If the compressed result is larger (or equal), keep the original
+        // so the user never gets a bigger file after "compressing"
         if (result.blob.size >= file.size) {
           const originalUrl = URL.createObjectURL(file.file);
           trackUrl(originalUrl);
@@ -224,16 +252,16 @@ export function useCompress() {
 
   const downloadSingle = useCallback((file: CompressFile) => {
     if (!file.compressedBlob) return;
-    const mimeToExt: Record<string, string> = {
-      "image/webp": "webp",
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/gif": "gif",
-      "image/bmp": "bmp",
-    };
-    const ext = mimeToExt[file.compressedBlob.type] || file.name.split(".").pop() || "jpg";
-    const baseName = file.name.replace(/\.[^.]+$/, "");
-    saveAs(file.compressedBlob, `compressed_${baseName}.${ext}`);
+    try {
+      const ext = MIME_TO_EXT[file.compressedBlob.type] || file.name.split(".").pop() || "jpg";
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      saveAs(file.compressedBlob, `compressed_${baseName}.${ext}`);
+    } catch {
+      setErrors((prev) => [
+        ...prev,
+        { id: generateId(), message: "Failed to download file. Your browser may block downloads in this context." },
+      ]);
+    }
   }, []);
 
   const downloadAll = useCallback(async () => {
@@ -243,50 +271,55 @@ export function useCompress() {
 
     if (doneFiles.length === 0) return;
 
+    // Single file: download directly instead of creating a one-file ZIP
     if (doneFiles.length === 1) {
       downloadSingle(doneFiles[0]);
       return;
     }
 
-    const mimeToExt: Record<string, string> = {
-      "image/webp": "webp",
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/gif": "gif",
-      "image/bmp": "bmp",
-    };
+    try {
+      const zipFiles = doneFiles.map((f) => {
+        const ext = MIME_TO_EXT[f.compressedBlob!.type] || f.name.split(".").pop() || "jpg";
+        const baseName = f.name.replace(/\.[^.]+$/, "");
+        return {
+          name: `compressed_${baseName}.${ext}`,
+          blob: f.compressedBlob!,
+        };
+      });
 
-    const zipFiles = doneFiles.map((f) => {
-      const ext = mimeToExt[f.compressedBlob!.type] || f.name.split(".").pop() || "jpg";
-      const baseName = f.name.replace(/\.[^.]+$/, "");
-      return {
-        name: `compressed_${baseName}.${ext}`,
-        blob: f.compressedBlob!,
-      };
-    });
-
-    const zipBlob = await createZip(zipFiles);
-    saveAs(zipBlob, "compressed_images.zip");
+      const zipBlob = await createZip(zipFiles);
+      saveAs(zipBlob, "compressed_images.zip");
+    } catch {
+      setErrors((prev) => [
+        ...prev,
+        { id: generateId(), message: "Failed to create ZIP archive." },
+      ]);
+    }
   }, [files, downloadSingle]);
 
   const resetFile = useCallback(
     (id: string) => {
-      const file = files.find((f) => f.id === id);
-      if (file) {
-        if (file.compressedUrl) revokeTrackedUrl(file.compressedUrl);
-        updateFile(id, {
-          status: "pending",
-          progress: 0,
-          compressedBlob: undefined,
-          compressedSize: undefined,
-          compressedUrl: undefined,
-          error: undefined,
-          compressedWidth: undefined,
-          compressedHeight: undefined,
-        });
-      }
+      setFiles((prev) => {
+        const file = prev.find((f) => f.id === id);
+        if (file?.compressedUrl) revokeTrackedUrl(file.compressedUrl);
+        return prev.map((f) =>
+          f.id === id
+            ? {
+                ...f,
+                status: "pending" as const,
+                progress: 0,
+                compressedBlob: undefined,
+                compressedSize: undefined,
+                compressedUrl: undefined,
+                error: undefined,
+                compressedWidth: undefined,
+                compressedHeight: undefined,
+              }
+            : f
+        );
+      });
     },
-    [files, updateFile]
+    []
   );
 
   const doneCount = files.filter((f) => f.status === "done").length;
