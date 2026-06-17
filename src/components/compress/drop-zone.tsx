@@ -33,7 +33,9 @@ export function DropZone({ onFiles, fileCount }: DropZoneProps) {
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(false);
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
   }, []);
 
   const handleInputChange = useCallback(
@@ -50,13 +52,24 @@ export function DropZone({ onFiles, fileCount }: DropZoneProps) {
     inputRef.current?.click();
   }, []);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      inputRef.current?.click();
+    }
+  }, []);
+
   if (remaining <= 0) return null;
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Drop zone for image files. Drag and drop images or press Enter to browse."
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
+      onKeyDown={handleKeyDown}
       className={cn(
         "group relative flex cursor-default flex-col items-center justify-center gap-5 rounded-2xl p-10 transition-all duration-300 sm:p-14",
         isDragOver
@@ -122,14 +135,18 @@ export function DropZone({ onFiles, fileCount }: DropZoneProps) {
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/60">
-        <span>Up to {remaining} more files</span>
+        <span>Up to {remaining} more file{remaining !== 1 ? "s" : ""}</span>
         <span>·</span>
         <span>{SUPPORTED_EXTENSIONS.map((e) => e.replace(".", "").toUpperCase()).join(", ")}</span>
         <span>·</span>
         <span>Max 50 MB</span>
       </div>
 
+      <label htmlFor="file-upload-input" className="sr-only">
+        Select image files
+      </label>
       <input
+        id="file-upload-input"
         ref={inputRef}
         type="file"
         accept={[...SUPPORTED_FORMATS, ...SUPPORTED_EXTENSIONS].join(",")}
