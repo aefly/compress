@@ -5,6 +5,18 @@ export const alt = site.title;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+/** Parses a hex color string into its RGB components */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace("#", "");
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+const primary = hexToRgb(site.themeColor);
+
 const tags = [
   {
     label: "No Uploads",
@@ -37,11 +49,11 @@ const tags = [
 function SvgIcon({
   paths,
   size = 16,
-  color = "#a78bfa",
+  color,
 }: {
   paths: [string, Record<string, string>][];
   size?: number;
-  color?: string;
+  color: string;
 }) {
   return (
     <svg
@@ -62,6 +74,9 @@ function SvgIcon({
 }
 
 export default async function Image() {
+  const accent = site.themeColor;
+  const accentRgb = `${primary.r}, ${primary.g}, ${primary.b}`;
+
   return new ImageResponse(
     (
       <div
@@ -92,7 +107,7 @@ export default async function Image() {
               width: 56,
               height: 56,
               borderRadius: 12,
-              background: "rgba(124, 58, 237, 0.15)",
+              background: `rgba(${accentRgb}, 0.15)`,
             }}
           >
             <svg
@@ -100,7 +115,7 @@ export default async function Image() {
               height="28"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#a78bfa"
+              stroke={accent}
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -119,7 +134,7 @@ export default async function Image() {
               letterSpacing: "-0.02em",
             }}
           >
-            Compress
+            {site.name}
           </span>
         </div>
 
@@ -130,7 +145,7 @@ export default async function Image() {
             fontWeight: 400,
           }}
         >
-          Privacy-First Image Compression
+          {site.shortDescription}
         </span>
 
         <div
@@ -149,14 +164,17 @@ export default async function Image() {
                 gap: 8,
                 padding: "8px 16px",
                 borderRadius: 8,
-                border: "1px solid rgba(124, 58, 237, 0.2)",
-                background: "rgba(124, 58, 237, 0.05)",
+                border: `1px solid rgba(${accentRgb}, 0.2)`,
+                background: `rgba(${accentRgb}, 0.05)`,
                 fontSize: 16,
-                color: "#a78bfa",
+                color: accent,
                 fontWeight: 500,
               }}
             >
-              <SvgIcon paths={tag.icon as [string, Record<string, string>][]} />
+              <SvgIcon
+                paths={tag.icon as [string, Record<string, string>][]}
+                color={accent}
+              />
               {tag.label}
             </div>
           ))}
