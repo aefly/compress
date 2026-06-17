@@ -26,6 +26,11 @@ describe("DropZone", () => {
     expect(screen.getByText("Up to 7 more files")).toBeInTheDocument();
   });
 
+  it("shows singular file count when only 1 remaining", () => {
+    render(<DropZone {...defaultProps} fileCount={9} />);
+    expect(screen.getByText("Up to 1 more file")).toBeInTheDocument();
+  });
+
   it("does not render when at max files", () => {
     const { container } = render(<DropZone {...defaultProps} fileCount={10} />);
     expect(container.firstChild).toBeNull();
@@ -35,7 +40,7 @@ describe("DropZone", () => {
     const onFiles = vi.fn();
     render(<DropZone {...defaultProps} onFiles={onFiles} />);
 
-    const dropZone = screen.getByText("Drag & drop images here").closest("div")!;
+    const dropZone = screen.getByRole("button", { name: /Drop zone/i });
     const file = createMockFile();
     const dropEvent = new Event("drop", { bubbles: true });
     Object.defineProperty(dropEvent, "dataTransfer", {
@@ -49,7 +54,7 @@ describe("DropZone", () => {
 
   it("shows drag over state", () => {
     render(<DropZone {...defaultProps} />);
-    const dropZone = screen.getByText("Drag & drop images here").closest("div")!;
+    const dropZone = screen.getByRole("button", { name: /Drop zone/i });
 
     fireEvent.dragOver(dropZone);
     expect(screen.getByText("Drop images here")).toBeInTheDocument();
@@ -63,6 +68,24 @@ describe("DropZone", () => {
     input.click = clickSpy;
 
     fireEvent.click(browseButton);
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("has accessible role and label", () => {
+    render(<DropZone {...defaultProps} />);
+    const dropZone = screen.getByRole("button", { name: /Drop zone/i });
+    expect(dropZone).toHaveAttribute("aria-label");
+    expect(dropZone).toHaveAttribute("tabIndex", "0");
+  });
+
+  it("handles keyboard interaction", () => {
+    render(<DropZone {...defaultProps} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.fn();
+    input.click = clickSpy;
+
+    const dropZone = screen.getByRole("button", { name: /Drop zone/i });
+    fireEvent.keyDown(dropZone, { key: "Enter" });
     expect(clickSpy).toHaveBeenCalled();
   });
 });
