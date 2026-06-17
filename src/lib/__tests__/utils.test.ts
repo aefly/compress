@@ -42,6 +42,14 @@ describe("formatSize", () => {
     expect(formatSize(999)).toBe("999 B");
     expect(formatSize(1000)).toBe("1.0 KB");
   });
+
+  it("handles negative numbers gracefully", () => {
+    expect(formatSize(-500)).toBe("-500 B");
+  });
+
+  it("handles large file sizes (GB range)", () => {
+    expect(formatSize(1_500_000_000)).toBe("1500.00 MB");
+  });
 });
 
 describe("truncateName", () => {
