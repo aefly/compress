@@ -1,8 +1,9 @@
 "use client";
 
-import { GitHubIcon } from "./header";
+import { GitHubIcon } from "@/components/icons";
 import { TermsModal } from "@/components/modals/terms-modal";
 import { PrivacyModal } from "@/components/modals/privacy-modal";
+import { site } from "@/site.config";
 
 export function Footer() {
   return (
@@ -10,7 +11,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 px-6 text-center">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <a
-            href="https://github.com/aefly/compress"
+            href={site.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
