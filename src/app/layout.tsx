@@ -3,7 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { site } from "@/site.config";
+import { site, favicon } from "@/site.config";
 import "./globals.css";
 
 const inter = Inter({
@@ -28,8 +28,8 @@ export const metadata: Metadata = {
         canonical: site.url,
     },
     icons: {
-        icon: "/favicon.svg",
-        shortcut: "/favicon.svg",
+        icon: favicon,
+        shortcut: favicon,
         apple: "/apple-touch-icon.png",
     },
     openGraph: {
@@ -51,12 +51,14 @@ export const metadata: Metadata = {
     manifest: "/site.webmanifest",
 };
 
-// Runs before React hydrates to set the dark class on <html>.
-// Prevents flash-of-wrong-theme on page load. Uses `var` and no arrow functions
-// for maximum compatibility since this runs synchronously in <head>.
+// Runs before React hydrates to:
+// 1. Set --primary-source CSS variable from site.themeColor (needed for light/dark theming)
+// 2. Apply the "dark" class if the user's preference is dark (prevents flash-of-wrong-theme)
+// Uses `var` and no arrow functions for maximum compatibility (runs synchronously in <head>)
 const themeScript = `
 (function() {
   try {
+    document.documentElement.style.setProperty('--primary-source', ${JSON.stringify(site.themeColor)});
     var t = localStorage.getItem('theme');
     if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
@@ -74,8 +76,6 @@ export default function RootLayout({
         <html
             lang="en"
             className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
-            // suppressHydrationWarning is needed because the inline theme script above
-            // may add the "dark" class before React hydrates, causing a className mismatch.
             suppressHydrationWarning
         >
             <head>
