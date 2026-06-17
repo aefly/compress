@@ -47,9 +47,8 @@ export function Comparison({
     [isDragging, updatePosition]
   );
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+  const handlePointerUp = useCallback(() => {
     setIsDragging(false);
-    containerRef.current?.releasePointerCapture(e.pointerId);
   }, []);
 
   const handleWheel = useCallback((e: WheelEvent) => {
@@ -60,8 +59,6 @@ export function Comparison({
     });
   }, []);
 
-  // Wheel events must be registered manually with { passive: false }
-  // because React's onWheel is passive by default and cannot call preventDefault().
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -75,6 +72,16 @@ export function Comparison({
     window.addEventListener("pointerup", handleGlobalUp);
     return () => window.removeEventListener("pointerup", handleGlobalUp);
   }, [isDragging]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setPosition((prev) => Math.max(0, prev - 2));
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setPosition((prev) => Math.min(100, prev + 2));
+    }
+  }, []);
 
   const imgStyle = {
     transform: `translate(-50%, -50%) scale(${zoom})`,
@@ -92,7 +99,7 @@ export function Comparison({
             onClick={() => setZoom((z) => Math.max(1, z - 0.25))}
             disabled={zoom <= 1}
             className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
-            title="Zoom out"
+            aria-label="Zoom out"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
@@ -103,7 +110,7 @@ export function Comparison({
             onClick={() => setZoom((z) => Math.min(5, z + 0.25))}
             disabled={zoom >= 5}
             className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
-            title="Zoom in"
+            aria-label="Zoom in"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
@@ -111,7 +118,7 @@ export function Comparison({
             onClick={() => setZoom(1)}
             disabled={zoom === 1}
             className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors ml-1"
-            title="Reset zoom"
+            aria-label="Reset zoom"
           >
             <RotateCcw className="h-3 w-3" />
           </button>
@@ -120,9 +127,17 @@ export function Comparison({
       <div
         ref={containerRef}
         className="relative aspect-video w-full cursor-col-resize overflow-hidden rounded-xl select-none ring-1 ring-border/50 bg-muted/30"
+        style={{ touchAction: "none" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="slider"
+        aria-label={`Comparison slider for ${originalName}`}
+        aria-valuenow={Math.round(position)}
+        aria-valuemin={0}
+        aria-valuemax={100}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -133,8 +148,6 @@ export function Comparison({
           draggable={false}
         />
 
-        {/* The "before" image is clipped from the left edge to the slider position.
-            The "after" image sits behind it at full width, creating the comparison effect. */}
         <div
           className="absolute inset-0 overflow-hidden pointer-events-none"
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
