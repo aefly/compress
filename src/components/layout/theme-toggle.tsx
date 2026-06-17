@@ -1,3 +1,10 @@
+/**
+ * Theme toggle button
+ *
+ * Uses `resolvedTheme` from next-themes (not just `theme`) so that when
+ * the theme is set to "system", the icon correctly reflects whether the
+ * user's OS preference is dark or light
+ */
 "use client";
 
 import { Moon, Sun } from "lucide-react";
@@ -5,8 +12,7 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { useSyncExternalStore } from "react";
 
-// Returns false during SSR and true after hydration.
-// Uses useSyncExternalStore to avoid the useEffect flicker that useState + useEffect causes.
+/** Returns false during SSR and true after hydration to avoid mismatch */
 function useMounted() {
   return useSyncExternalStore(
     () => () => {},
@@ -16,9 +22,9 @@ function useMounted() {
 }
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
-  const isDark = mounted && theme === "dark";
+  const isDark = mounted && (resolvedTheme === "dark" || theme === "dark");
 
   return (
     <Button
@@ -26,6 +32,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle theme"
+      className="size-12"
     >
       <div className="relative h-4 w-4">
         <Sun
