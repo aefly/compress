@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { compressImage } from "../compress";
+import { MIN_COMPRESS_SIZE } from "../constants";
 
 function createMockFile(
   name: string,
@@ -41,13 +42,17 @@ describe("compressImage", () => {
     ).rejects.toThrow("Unsupported format: image/tiff");
   });
 
-  it("skips compression for files smaller than 10KB", async () => {
+  it("skips compression for files smaller than MIN_COMPRESS_SIZE", async () => {
     const file = createMockFile("tiny.jpg", "image/jpeg", 5000);
     const onProgress = vi.fn();
     const result = await compressImage(file, { quality: 80, onProgress });
     expect(result.blob).toBe(file);
     expect(onProgress).toHaveBeenCalledWith(10);
     expect(onProgress).toHaveBeenCalledWith(100);
+  });
+
+  it("uses MIN_COMPRESS_SIZE constant for the threshold", () => {
+    expect(MIN_COMPRESS_SIZE).toBe(10 * 1024);
   });
 
   it("compresses a jpeg image via canvas", async () => {
