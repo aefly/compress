@@ -7,6 +7,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import { site } from "@/site.config";
 
 export function PrivacyModal() {
     return (
@@ -63,7 +64,7 @@ export function PrivacyModal() {
                         <p>
                             The project is open-source and hosted on{" "}
                             <a
-                                href="https://github.com/aefly/compress"
+                                href={site.githubUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary underline underline-offset-2"
