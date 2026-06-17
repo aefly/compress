@@ -37,4 +37,8 @@ describe("createZip", () => {
     const result = await createZip([]);
     expect(result).toBeInstanceOf(Blob);
   });
+
+  it("throws on invalid input", async () => {
+    await expect(createZip(null as unknown as [])).rejects.toThrow();
+  });
 });
