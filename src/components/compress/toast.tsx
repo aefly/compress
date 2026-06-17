@@ -1,7 +1,15 @@
+/**
+* Toast notification component for displaying error messages
+*
+* Uses CSS animation (animate-toast-progress) for the countdown bar
+* instead of JS-driven state updates to avoid re-renders every 50ms
+* The animation duration must match TOAST_DURATION_MS
+ */
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { AlertCircle, X } from "lucide-react";
+import { TOAST_DURATION_MS, TOAST_EXIT_MS } from "@/lib/constants";
 
 export interface Toast {
   id: string;
@@ -14,8 +22,8 @@ interface ToastItemProps {
 }
 
 function ToastItem({ toast, onDismiss }: ToastItemProps) {
-  const [progress, setProgress] = useState(100);
   const [isExiting, setIsExiting] = useState(false);
+  // Refs avoid stale closures when timers fire after props change
   const onDismissRef = useRef(onDismiss);
   const toastIdRef = useRef(toast.id);
 
@@ -27,42 +35,28 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
     setIsExiting(true);
   }, []);
 
+  // Auto-dismiss after the progress bar completes
   useEffect(() => {
-    const duration = 5000;
-    const interval = 50;
-    const step = (interval / duration) * 100;
-
-    const progressTimer = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev - step;
-        if (next <= 0) {
-          clearInterval(progressTimer);
-          return 0;
-        }
-        return next;
-      });
-    }, interval);
-
     const autoDismissTimer = setTimeout(() => {
       dismiss();
-    }, duration);
+    }, TOAST_DURATION_MS);
 
-    return () => {
-      clearInterval(progressTimer);
-      clearTimeout(autoDismissTimer);
-    };
+    return () => clearTimeout(autoDismissTimer);
   }, [dismiss]);
 
+  // Remove from state after the exit animation finishes
   useEffect(() => {
     if (!isExiting) return;
     const timer = setTimeout(() => {
       onDismissRef.current(toastIdRef.current);
-    }, 300);
+    }, TOAST_EXIT_MS);
     return () => clearTimeout(timer);
   }, [isExiting]);
 
   return (
     <div
+      role="alert"
+      aria-live="assertive"
       className={`w-80 overflow-hidden rounded-xl border border-destructive/20 bg-card/95 backdrop-blur-xl shadow-2xl shadow-destructive/10 ${
         isExiting ? "animate-toast-exit" : "animate-toast-enter"
       }`}
@@ -76,6 +70,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         </p>
         <button
           onClick={dismiss}
+          aria-label="Dismiss notification"
           className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <X className="h-4 w-4" />
@@ -83,8 +78,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       </div>
       <div className="h-1 bg-destructive/5">
         <div
-          className="h-full bg-gradient-to-l from-destructive to-destructive/60 transition-all duration-50 ease-linear"
-          style={{ width: `${progress}%` }}
+          className="h-full bg-gradient-to-l from-destructive to-destructive/60 animate-toast-progress"
         />
       </div>
     </div>
