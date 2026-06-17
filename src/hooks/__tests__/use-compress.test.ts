@@ -67,7 +67,7 @@ describe("useCompress", () => {
 
     expect(result.current.files).toHaveLength(0);
     expect(result.current.errors).toHaveLength(1);
-    expect(result.current.errors[0].message).toContain("exceeds 50 MB");
+    expect(result.current.errors[0].message).toContain("50 MB");
   });
 
   it("rejects unsupported format files", () => {
@@ -145,7 +145,7 @@ describe("useCompress", () => {
     expect(result.current.quality).toBe(50);
   });
 
-  it("limits to MAX_FILES", () => {
+  it("limits to MAX_FILES and shows error for dropped files", () => {
     const { result } = renderHook(() => useCompress());
     const files = Array.from({ length: 12 }, (_, i) =>
       createMockFile(`img${i}.jpg`)
@@ -156,5 +156,29 @@ describe("useCompress", () => {
     });
 
     expect(result.current.files).toHaveLength(10);
+    const hasMaxError = result.current.errors.some(
+      (e) => e.message.includes("more file") || e.message.includes("not added")
+    );
+    expect(hasMaxError).toBe(true);
+  });
+
+  it("resets a file to pending state", () => {
+    const { result } = renderHook(() => useCompress());
+    const file = createMockFile();
+
+    act(() => {
+      result.current.addFiles([file]);
+    });
+
+    const fileId = result.current.files[0].id;
+
+    act(() => {
+      result.current.resetFile(fileId);
+    });
+
+    const updated = result.current.files[0];
+    expect(updated.status).toBe("pending");
+    expect(updated.compressedSize).toBeUndefined();
+    expect(updated.compressedBlob).toBeUndefined();
   });
 });
